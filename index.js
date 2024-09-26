@@ -259,6 +259,9 @@ const __dirname = path.dirname(__filename);
 // Serve static files from the Vite build directory
 app.use(express.static(path.join(__dirname, 'frontend', 'dist')));
 
+// Serve static files from the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Catch-all route to serve index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend', 'dist', 'index.html'));

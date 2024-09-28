@@ -60,11 +60,11 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Fetch registered users
+// Endpoint to fetch all registered users
 app.get('/api/register', async (req, res) => {
   try {
-    const users = await User.find();
-    res.json(users);
+    const users = await User.find(); // Fetch all users
+    res.status(200).json(users); // Send users as response
   } catch (error) {
     res.status(500).json({ message: 'Error fetching users', error });
   }
@@ -135,21 +135,6 @@ app.get('/api/blogs', async (req, res) => {
   }
 });
 
-// Get all blog posts with pagination
-app.get('/api/blogs/main', async (req, res) => {
-  const { page = 1, limit = 28 } = req.query; // Default limit to 28
-  try {
-    const blogs = await Blog.find()
-      .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit))
-      .exec();
-      
-    const total = await Blog.countDocuments(); // Get the total count of blogs
-    res.json({ blogs, total });
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching blogs', error });
-  }
-});
 
 // Get a single blog post by ID
 app.get('/api/blogs/:id', async (req, res) => {
@@ -231,7 +216,7 @@ app.post('/api/subscribe', async (req, res) => {
     update_existing: true
   };
 
-  const mailchimpUrl = `https://us14.api.mailchimp.com/3.0/lists/${process.env.MAILCHIMP_AUDIENCE_ID}`;
+  const mailchimpUrl = `https://us21.api.mailchimp.com/3.0/lists/${process.env.MAILCHIMP_AUDIENCE_ID}`;
 
   try {
     const response = await axios.post(mailchimpUrl, mailchimpData, {
@@ -252,6 +237,61 @@ app.post('/api/subscribe', async (req, res) => {
   }
 });
 
+
+// Event Schema
+const eventSchema = new mongoose.Schema({
+  title: String,
+  date: Date,
+  time: String,
+  image: String,
+});
+
+const Event = mongoose.model('Event', eventSchema);
+
+// Create a new event
+app.post('/api/events', upload.single('image'), async (req, res) => {
+  const { title, date, time } = req.body;
+  const image = req.file ? req.file.path : '';
+
+  const newEvent = new Event({ title, date, time, image });
+  try {
+    await newEvent.save();
+    res.status(201).json(newEvent);
+  } catch (error) {
+    res.status(400).json({ message: 'Error creating event', error });
+  }
+});
+
+// Get all events (filtering out past dates)
+app.get('/api/events', async (req, res) => {
+  try {
+    const events = await Event.find({ date: { $gte: new Date() } }).sort({ date: 1 });
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching events', error });
+  }
+});
+
+// Delete an event
+app.delete('/api/events/:id', async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (event) {
+      // Delete the image from the server if it exists
+      if (event.image && fs.existsSync(event.image)) {
+        fs.unlinkSync(event.image);
+      }
+      await Event.findByIdAndDelete(req.params.id);
+      res.status(204).send();
+    } else {
+      res.status(404).json({ error: 'Event not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting event', error });
+  }
+});
+
+
 // Get the current directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -266,6 +306,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend', 'dist', 'index.html'));
 });
+
 
 // Start the server
 app.listen(PORT, () => {
